@@ -6,7 +6,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen text-slate-800 relative">
       <header className="bg-gradient-to-r from-purple-600/90 via-purple-500/90 to-purple-600/90 backdrop-blur-sm shadow-lg px-6 py-4 flex justify-between items-center relative z-10">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">ScanCollect 2.0</h1>
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">ScanCollect</h1>
         <div className="space-x-3">
           <Link href="/login"><Button
             className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold shadow-lg border-0 transform transition duration-200 hover:scale-105 hover:from-yellow-500 hover:to-orange-600"
