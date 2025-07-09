@@ -34,7 +34,7 @@ function Card({ card }: { card: CardType }) {
   return (
     <motion.div
       style={{
-        background: 'linear-gradient(135deg, #9333ea, #22c55e, #eab308, #9333ea)',
+        background: 'none',
         padding: 4,
         borderRadius: 36,
         display: 'flex',
@@ -47,7 +47,7 @@ function Card({ card }: { card: CardType }) {
       whileHover={{
         scale: 1.12,
         rotate: -2,
-        boxShadow: "0 15px 35px rgba(147, 51, 234, 0.3), 0 5px 15px rgba(34, 197, 94, 0.2)",
+        boxShadow: "0 15px 35px rgba(147, 51, 234, 0.15), 0 5px 15px rgba(168, 85, 247, 0.10)",
         zIndex: 10,
       }}
       transition={{
@@ -62,10 +62,11 @@ function Card({ card }: { card: CardType }) {
           height: 210,
           borderRadius: 32,
           backgroundColor: '#fff',
+          border: '2px solid #c4b5fd',
           backgroundImage: isEmoji ? 'none' : `url(${card.image_url})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          boxShadow: '0 8px 25px rgba(147, 51, 234, 0.15), 0 4px 10px rgba(34, 197, 94, 0.1)',
+          boxShadow: '0 8px 25px rgba(147, 51, 234, 0.08), 0 4px 10px rgba(168, 85, 247, 0.06)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

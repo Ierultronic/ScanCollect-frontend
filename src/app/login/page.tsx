@@ -4,11 +4,14 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { FcGoogle } from "react-icons/fc"
 import { signInWithGoogle as signInWithGoogleHelper } from "../lib/supabase"
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
+  const router = useRouter();
   const signInWithGoogle = async () => {
     try {
       await signInWithGoogleHelper();
+      // Supabase will handle redirect
     } catch (error) {
       // Optionally handle error
       console.error(error);
