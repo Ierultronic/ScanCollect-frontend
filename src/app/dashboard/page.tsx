@@ -105,7 +105,11 @@ export default function DashboardPage() {
                 Welcome back, {user?.username || 'User'} <span role='img' aria-label='wave'>👋</span>
               </h1>
               <p className="text-purple-400 text-sm font-semibold">
-                Member since {user?.joined_at ? new Date(user.joined_at).toLocaleDateString() : 'Recently'}
+                Member since {user?.joined_at ? new Date(user.joined_at).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'numeric', 
+                  year: 'numeric'
+                }) : 'Recently'}
               </p>
             </div>
           </div>
