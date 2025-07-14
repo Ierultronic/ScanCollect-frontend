@@ -119,5 +119,19 @@ export async function createOrGetUser() {
 }
 
 export async function logout() {
-  await supabase.auth.signOut();
+  try {
+    // Clear any local storage or session data if needed
+    if (typeof window !== 'undefined') {
+      // Clear any custom session data
+      localStorage.removeItem('user_preferences');
+      sessionStorage.clear();
+    }
+    
+    // Sign out from Supabase
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  } catch (error) {
+    console.error('Logout error:', error);
+    throw error;
+  }
 }

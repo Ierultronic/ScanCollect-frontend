@@ -19,6 +19,7 @@ const navSections = [
   {
     title: 'Explore',
     links: [
+      { label: 'Explore', href: '/explore', icon: <FaSearch /> },
       { label: 'Card Library', href: '/cards', icon: <FaBook /> },
       { label: 'TCG Categories', href: '/categories', icon: <FaLayerGroup /> },
       { label: 'Search & Filter', href: '/search', icon: <FaSearch /> },
@@ -46,11 +47,23 @@ const navSections = [
 
 export default function Sidebar() {
   const [open, setOpen] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
 
   const handleLogout = async () => {
-    await logout();
-    router.push('/login');
+    if (isLoggingOut) return; // Prevent multiple clicks
+    
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still redirect to login even if logout fails
+      router.push('/login');
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -108,9 +121,19 @@ export default function Sidebar() {
             {/* Logout Button */}
             <button
               onClick={handleLogout}
-              className="w-full mt-6 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition flex items-center justify-center gap-2"
+              disabled={isLoggingOut}
+              className="w-full mt-6 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              <FaSignOutAlt /> Logout
+              {isLoggingOut ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Logging out...
+                </>
+              ) : (
+                <>
+                  <FaSignOutAlt /> Logout
+                </>
+              )}
             </button>
             <div className="mt-8 text-xs text-purple-300 text-center opacity-70 select-none">
               &copy; {new Date().getFullYear()} ScanCollect
