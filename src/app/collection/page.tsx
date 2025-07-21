@@ -239,76 +239,90 @@ export default function CollectionPage() {
             {filteredAndSortedCards.map((card: Card) => (
               <div
                 key={card.id}
-                className={`bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 ${
+                className={`relative group bg-white/80 rounded-2xl border border-gray-200 shadow-md overflow-hidden transition-all duration-300 hover:shadow-2xl ${
                   viewMode === 'list' ? 'flex' : ''
                 } ${selectedCards.includes(card.id) ? 'ring-2 ring-purple-500' : ''}`}
               >
                 {/* Card Image */}
-                <div className={`${viewMode === 'list' ? 'w-32 flex-shrink-0' : 'w-full'}`}>
+                <div className={`${viewMode === 'list' ? 'w-32 flex-shrink-0' : 'w-full'} relative`}>
                   {card.image_url ? (
-                    <img
-                      src={card.image_url}
-                      alt={card.name}
-                      className={`${viewMode === 'list' ? 'h-full w-full' : 'h-48 w-full'} object-cover`}
-                    />
+                    <div className={`${viewMode === 'list' ? 'h-44' : 'h-64'} w-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-blue-100 rounded-t-2xl`}>
+                      <img
+                        src={card.image_url}
+                        alt={card.name}
+                        className={`object-contain max-h-full max-w-full transition-transform duration-300 ${viewMode === 'list' ? 'h-40 w-full rounded-l-2xl rounded-r-none' : 'h-60 w-full rounded-t-2xl'} group-hover:scale-105`}
+                        style={{ background: 'transparent' }}
+                      />
+                    </div>
                   ) : (
-                    <div className={`${viewMode === 'list' ? 'h-32' : 'h-48'} w-full bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center`}>
+                    <div className={`${viewMode === 'list' ? 'h-44' : 'h-64'} w-full bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center rounded-t-2xl`}>
                       <div className="text-gray-400 text-4xl">🃏</div>
                     </div>
                   )}
+                  {/* Custom Checkbox Overlay */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <label className="inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedCards.includes(card.id)}
+                        onChange={() => handleSelectCard(card.id)}
+                        className="peer sr-only"
+                      />
+                      <span className="w-5 h-5 rounded border-2 border-purple-400 bg-white flex items-center justify-center transition-colors peer-checked:bg-purple-500 peer-checked:border-purple-600">
+                        {selectedCards.includes(card.id) && (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        )}
+                      </span>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Card Info */}
-                <div className={`p-4 ${viewMode === 'list' ? 'flex-1' : ''}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-semibold text-gray-900 text-lg line-clamp-2">
+                <div className={`p-4 flex flex-col gap-2 ${viewMode === 'list' ? 'flex-1' : ''}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-bold text-gray-900 text-lg truncate flex-1" title={card.name}>
                       {card.name}
                     </h3>
-                    <input
-                      type="checkbox"
-                      checked={selectedCards.includes(card.id)}
-                      onChange={() => handleSelectCard(card.id)}
-                      className="ml-2"
-                    />
                   </div>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Category:</span>
-                      <span>{getCategoryName(card.category_id)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Rarity:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs text-white ${getRarityColor(card.rarity)}`}>
-                        {card.rarity}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Set:</span>
-                      <span>{card.set_code} #{card.number}</span>
-                    </div>
-                    {card.description && (
-                      <p className="text-gray-500 text-xs line-clamp-2">
-                        {card.description}
-                      </p>
-                    )}
-                    <div className="text-xs text-gray-400">
-                      Added {new Date(card.created_at).toLocaleDateString()}
-                    </div>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-700 border border-gray-200" title="Category">
+                      {getCategoryName(card.category_id)}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs text-white border ${getRarityColor(card.rarity)}`} title="Rarity">
+                      {card.rarity}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-xs text-blue-700 border border-blue-200" title="Set">
+                      {card.set_code} #{card.number}
+                    </span>
                   </div>
+                  {card.description && (
+                    <p className="text-gray-500 text-xs line-clamp-2 mb-2">{card.description}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-auto">
+                    <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full border border-gray-200" title="Date Added">
+                      {new Date(card.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {/* Divider */}
+                  <div className="border-t border-gray-100 my-2" />
                   {/* Action Buttons */}
-                  <div className="flex gap-2 mt-4">
-                    <button className="flex-1 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors flex items-center justify-center gap-1">
-                      <FaEye /> View
+                  <div className="flex gap-2 mt-1">
+                    <button className="flex-1 p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors flex items-center justify-center group/view relative" title="View">
+                      <FaEye />
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 text-xs bg-gray-800 text-white rounded px-2 py-0.5 opacity-0 group-hover/view:opacity-100 pointer-events-none transition-opacity">View</span>
                     </button>
-                    <button className="flex-1 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors flex items-center justify-center gap-1">
-                      <FaEdit /> Edit
+                    <button className="flex-1 p-2 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors flex items-center justify-center group/edit relative" title="Edit">
+                      <FaEdit />
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 text-xs bg-gray-800 text-white rounded px-2 py-0.5 opacity-0 group-hover/edit:opacity-100 pointer-events-none transition-opacity">Edit</span>
                     </button>
                     <button
                       onClick={() => handleDeleteCard(card.id)}
                       disabled={deleteLoading}
-                      className="flex-1 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                      className="flex-1 p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors flex items-center justify-center group/delete relative disabled:opacity-50"
+                      title="Delete"
                     >
-                      <FaTrash /> Delete
+                      <FaTrash />
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 text-xs bg-gray-800 text-white rounded px-2 py-0.5 opacity-0 group-hover/delete:opacity-100 pointer-events-none transition-opacity">Delete</span>
                     </button>
                   </div>
                 </div>
