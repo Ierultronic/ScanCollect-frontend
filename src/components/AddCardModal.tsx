@@ -43,10 +43,39 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
   const selectedCategory = categories?.find((cat: any) => cat.id === formData.category_id);
   const tcgKey = selectedCategory ? slugify(selectedCategory.name) : '';
 
+  // Image upload state
+  const [uploading, setUploading] = useState(false);
+
   // Reset rarity when category changes
   React.useEffect(() => {
     setFormData(prev => ({ ...prev, rarity: '' }));
   }, [formData.category_id]);
+
+  // Handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+    const filePath = `card-images/${fileName}`;
+    try {
+      let { error: uploadError } = await supabase.storage.from('card-images').upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+      // Get public URL
+      const { data } = supabase.storage.from('card-images').getPublicUrl(filePath);
+      if (!data?.publicUrl) throw new Error('Failed to get public URL');
+      setFormData(prev => ({ ...prev, image_url: data.publicUrl }));
+      toast.success('Image uploaded!');
+    } catch (err: any) {
+      toast.error('Image upload failed: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,10 +259,23 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
               />
             </div>
 
-            {/* Image URL */}
+            {/* Image Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Card Image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={uploading}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              />
+              {uploading && <div className="text-xs text-purple-600 mt-1">Uploading...</div>}
+            </div>
+
+            {/* Image URL (optional/manual) */}
             <div>
               <label htmlFor="image_url" className="block text-sm font-medium text-gray-700 mb-2">
-                Image URL
+                Image URL (optional)
               </label>
               <input
                 type="url"

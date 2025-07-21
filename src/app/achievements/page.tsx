@@ -124,7 +124,7 @@ export default function AchievementsPage() {
                       <div className="flex items-center gap-2 mb-1">
                         <h2 className="text-lg font-bold text-purple-800 text-center">{ach.name}</h2>
                         {ach.unlocked && (
-                          <span className="ml-2 px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded">Unlocked</span>
+                          <span className="ml-2 px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded">Achieved</span>
                         )}
                       </div>
                       <p className="text-gray-600 text-center mb-3">{ach.description}</p>
