@@ -5,6 +5,8 @@ import Sidebar from "@/components/Sidebar";
 import { FaSearch, FaSort } from "react-icons/fa";
 import AuthGuard from "@/components/AuthGuard";
 import { motion } from "framer-motion";
+import { TCG_OPTIONS, TCG_RARITIES } from "../../lib/tcg-constants";
+import TcgCardFilter from '../../components/TcgCardFilter';
 
 interface Card {
   id: string;
@@ -17,16 +19,6 @@ interface Card {
   // API TCG may not have category_id, so omit category filter for now
 }
 
-const TCG_OPTIONS = [
-  { value: "one-piece", label: "One Piece" },
-  { value: "pokemon", label: "Pokémon" },
-  { value: "dragon-ball-fusion", label: "Dragon Ball Fusion" },
-  { value: "digimon", label: "Digimon" },
-  { value: "magic", label: "Magic: The Gathering" },
-  { value: "union-arena", label: "Union Arena" },
-  { value: "gundam", label: "Gundam" },
-];
-
 export default function ExplorePage() {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,35 +29,60 @@ export default function ExplorePage() {
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [viewMode] = useState<'grid'>('grid'); // Remove toggle, always grid
-  const [selectedTCG, setSelectedTCG] = useState("one-piece");
+  // State for filtering and sorting
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalImage, setModalImage] = useState<string | null>(null);
+
+  // Fetch categories from backend
+  useEffect(() => {
+    fetch("http://localhost:8082/api/categories")
+      .then(res => res.json())
+      .then(data => {
+        console.log('Fetched categories response:', data);
+        if (Array.isArray(data)) setCategories(data);
+        else if (data && Array.isArray(data.data)) setCategories(data.data);
+        else if (data && Array.isArray(data.categories)) setCategories(data.categories);
+        else setCategories([]);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch categories:', err);
+        setCategories([]);
+      });
+  }, []);
 
   // Fetch cards from backend API
   useEffect(() => {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
-    params.append("tcg", selectedTCG);
+    // Find the selected category object
+    const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
+    // Convert category name to slug
+    const tcgSlug = selectedCategoryObj?.name
+      ? selectedCategoryObj.name.toLowerCase().replace(/ /g, '-')
+      : '';
+    if (tcgSlug) params.append("tcg", tcgSlug);
     if (searchTerm) params.append("name", searchTerm);
     params.append("page", String(page));
-    params.append("limit", "10"); // Limit to 10 per page
+    params.append("limit", "10");
     fetch(`http://localhost:8082/api/explore-cards?${params.toString()}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch cards");
         const data = await res.json();
-        setCards(data.data || []); // API TCG returns { data: [...] }
+        setCards(data.data || []);
         if (typeof data.totalPages === "number") setTotalPages(data.totalPages);
         else setTotalPages(1);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [searchTerm, selectedTCG, page]);
+  }, [searchTerm, selectedCategory, page, categories]);
 
   // Reset to page 1 when search or TCG changes
-  useEffect(() => { setPage(1); }, [searchTerm, selectedTCG]);
+  useEffect(() => { setPage(1); }, [searchTerm, selectedCategory]);
 
   // Keep searchInput in sync with searchTerm when searchTerm changes (e.g., on TCG change)
   useEffect(() => { setSearchInput(searchTerm); }, [searchTerm]);
@@ -174,78 +191,26 @@ export default function ExplorePage() {
                 {filteredAndSortedCards.length} card{filteredAndSortedCards.length !== 1 ? "s" : ""} found
               </p>
             </div>
-
             {/* Controls */}
             <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
-                {/* TCG Selector */}
-                <select
-                  value={selectedTCG}
-                  onChange={e => setSelectedTCG(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  {TCG_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                {/* Search */}
-                <form
-                  className="relative col-span-2 flex"
-                  onSubmit={e => {
-                    e.preventDefault();
-                    setSearchTerm(searchInput);
-                  }}
-                  role="search"
-                >
-                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search cards..."
-                    value={searchInput}
-                    onChange={e => setSearchInput(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-purple-600 text-white font-bold rounded-r-lg hover:bg-purple-700 transition"
-                    aria-label="Search"
-                  >
-                    Search
-                  </button>
-                </form>
-                {/* Rarity Filter */}
-                <select
-                  value={selectedRarity}
-                  onChange={(e) => setSelectedRarity(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  <option value="">All Rarities</option>
-                  <option value="Common">Common</option>
-                  <option value="Uncommon">Uncommon</option>
-                  <option value="Rare">Rare</option>
-                  <option value="Epic">Epic</option>
-                  <option value="Legendary">Legendary</option>
-                </select>
-                {/* Sort */}
-                <div className="flex gap-2 col-span-2 lg:col-span-1">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="name">Name</option>
-                    <option value="rarity">Rarity</option>
-                    <option value="set_code">Set</option>
-                  </select>
-                  <button
-                    onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-purple-500"
-                  >
-                    <FaSort className={sortOrder === "asc" ? "rotate-180" : ""} />
-                  </button>
-                </div>
-                {/* View Mode buttons removed */}
-              </div>
+              <TcgCardFilter
+                rarity={selectedRarity}
+                search={searchInput}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                categories={categories}
+                selectedCategory={selectedCategory}
+                onChange={(filters) => {
+                  if (filters.category !== undefined) setSelectedCategory(filters.category);
+                  if (filters.rarity !== undefined) setSelectedRarity(filters.rarity);
+                  if (filters.search !== undefined) setSearchInput(filters.search);
+                  if (filters.sortBy !== undefined) setSortBy(filters.sortBy);
+                  if (filters.sortOrder !== undefined) setSortOrder(filters.sortOrder as 'asc' | 'desc');
+                }}
+                showSearchButton={true}
+                showRarity={true}
+                showSort={true}
+              />
             </div>
 
             {/* Cards Display */}

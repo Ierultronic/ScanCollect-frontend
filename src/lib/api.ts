@@ -1,6 +1,8 @@
 // API Service for ScanCollect Frontend
 // Handles all CRUD operations for cards, categories, and achievements
 
+import { supabase } from './supabase';
+
 const API_BASE_URL = 'http://localhost:8082/api';
 
 // Types
@@ -41,26 +43,27 @@ export interface UserAchievement {
   unlocked_at: string;
 }
 
+export interface Collection {
+  id: string;
+  user_id: string;
+  card_id: string;
+  collected_at: string;
+}
+
 // API Response types
 interface ApiResponse<T> {
   message: string;
   [key: string]: T | string;
 }
 
-// Helper function to get auth token
-const getAuthToken = (): string | null => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('authToken');
-  }
-  return null;
-};
-
 // Helper function to make authenticated requests
 const makeAuthenticatedRequest = async (
   url: string,
   options: RequestInit = {}
 ): Promise<Response> => {
-  const token = getAuthToken();
+  // Get the current session (access token) from Supabase
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -285,9 +288,43 @@ export const achievementsApi = {
   },
 };
 
+export const collectionsApi = {
+  // Add card to user's collection
+  create: async (collection: Omit<Collection, 'id' | 'collected_at'>): Promise<Collection> => {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/collections`, {
+      method: 'POST',
+      body: JSON.stringify(collection),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to add card to collection');
+    }
+    const data: ApiResponse<Collection> = await response.json();
+    return data.collection as Collection;
+  },
+  // Remove card from user's collection by collection id
+  delete: async (id: string): Promise<void> => {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/collections/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to remove card from collection');
+    }
+  },
+  // Get collections by user_id
+  getByUser: async (user_id: string): Promise<Collection[]> => {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/collections?user_id=${user_id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch collections for user');
+    }
+    const data: ApiResponse<Collection[]> = await response.json();
+    return (data.collections || []) as Collection[];
+  },
+};
+
 // Export all APIs as a single object for convenience
 export const api = {
   cards: cardsApi,
   categories: categoriesApi,
   achievements: achievementsApi,
+  collections: collectionsApi,
 }; 

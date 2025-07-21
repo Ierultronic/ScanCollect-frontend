@@ -1,15 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useCards, useCategories, useDeleteCard } from '../../lib/hooks';
+import { useCards, useCategories, useDeleteCard, useUserCollections } from '../../lib/hooks';
 import { Card, Category } from '../../lib/api';
 import { FaSearch, FaFilter, FaSort, FaTrash, FaEdit, FaEye, FaPlus, FaDownload, FaShare } from 'react-icons/fa';
 import AddCardModal from '../../components/AddCardModal';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import TcgCardFilter from '../../components/TcgCardFilter';
+import { TCG_OPTIONS } from '../../lib/tcg-constants';
 
 export default function CollectionPage() {
   const { data: cards, loading, error, refetch } = useCards();
+  const { collections, loading: loadingCollections, error: errorCollections } = useUserCollections();
   const { data: categories } = useCategories();
   const { deleteCard, loading: deleteLoading } = useDeleteCard();
 
@@ -23,20 +26,12 @@ export default function CollectionPage() {
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Filter and sort cards
-  const filteredAndSortedCards = React.useMemo(() => {
-    if (!cards) return [];
-
-    let filtered = cards.filter((card: Card) => {
-      const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          card.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          card.set_code.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesCategory = !selectedCategory || card.category_id === selectedCategory;
-      const matchesRarity = !selectedRarity || card.rarity === selectedRarity;
-
-      return matchesSearch && matchesCategory && matchesRarity;
-    });
+  // Filter and sort cards (only those in user's collection)
+  const filteredAndSortedCards: Card[] = React.useMemo((): Card[] => {
+    if (!cards || !collections) return [];
+    // Only show cards that are in the user's collection
+    const userCardIds = new Set(collections.map(col => col.card_id));
+    let filtered = cards.filter((card: Card) => userCardIds.has(card.id));
 
     // Sort cards
     filtered.sort((a: Card, b: Card) => {
@@ -71,8 +66,20 @@ export default function CollectionPage() {
       }
     });
 
+    // Apply search, category, and rarity filters
+    filtered = filtered.filter((card: Card) => {
+      const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          card.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          card.set_code.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCategory = !selectedCategory || card.category_id === selectedCategory;
+      const matchesRarity = !selectedRarity || card.rarity === selectedRarity;
+
+      return matchesSearch && matchesCategory && matchesRarity;
+    });
+
     return filtered;
-  }, [cards, searchTerm, selectedCategory, selectedRarity, sortBy, sortOrder]);
+  }, [cards, collections, searchTerm, selectedCategory, selectedRarity, sortBy, sortOrder]);
 
   // Handle card deletion
   const handleDeleteCard = async (cardId: string) => {
@@ -120,7 +127,7 @@ export default function CollectionPage() {
     }
   };
 
-  if (loading) {
+  if (loading || loadingCollections) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
@@ -128,12 +135,12 @@ export default function CollectionPage() {
     );
   }
 
-  if (error) {
+  if (error || errorCollections) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="text-red-600 text-xl mb-4">Error loading collection</div>
-          <div className="text-gray-600">{error}</div>
+          <div className="text-gray-600">{error || errorCollections}</div>
         </div>
       </div>
     );
@@ -152,71 +159,26 @@ export default function CollectionPage() {
             {filteredAndSortedCards.length} card{filteredAndSortedCards.length !== 1 ? 's' : ''} in your collection
           </p>
         </div>
-
         {/* Controls */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
-            {/* Search */}
-            <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search cards..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            >
-              <option value="">All Categories</option>
-              {categories?.map((category: Category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Rarity Filter */}
-            <select
-              value={selectedRarity}
-              onChange={(e) => setSelectedRarity(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            >
-              <option value="">All Rarities</option>
-              <option value="Common">Common</option>
-              <option value="Uncommon">Uncommon</option>
-              <option value="Rare">Rare</option>
-              <option value="Epic">Epic</option>
-              <option value="Legendary">Legendary</option>
-            </select>
-
-            {/* Sort */}
-            <div className="flex gap-2">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-                <option value="name">Name</option>
-                <option value="rarity">Rarity</option>
-                <option value="set_code">Set</option>
-                <option value="created_at">Date Added</option>
-              </select>
-              <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-purple-500"
-              >
-                <FaSort className={sortOrder === 'asc' ? 'rotate-180' : ''} />
-              </button>
-            </div>
-          </div>
-
+          <TcgCardFilter
+            rarity={selectedRarity}
+            search={searchTerm}
+            sortBy={sortBy}
+            sortOrder={sortOrder as 'asc' | 'desc'}
+            categories={categories || []}
+            selectedCategory={selectedCategory}
+            onChange={(filters) => {
+              if (filters.rarity !== undefined) setSelectedRarity(filters.rarity);
+              if (filters.search !== undefined) setSearchTerm(filters.search);
+              if (filters.sortBy !== undefined) setSortBy(filters.sortBy);
+              if (filters.sortOrder !== undefined) setSortOrder(filters.sortOrder);
+              if (filters.category !== undefined) setSelectedCategory(filters.category);
+            }}
+            showSearchButton={false}
+            showRarity={true}
+            showSort={true}
+          />
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 items-center justify-between">
             <div className="flex gap-2">
@@ -241,24 +203,18 @@ export default function CollectionPage() {
                 List View
               </button>
             </div>
-
             <div className="flex gap-2">
               {selectedCards.length > 0 && (
-                <>
-                  <button className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2">
-                    <FaTrash /> Delete Selected ({selectedCards.length})
-                  </button>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
-                    <FaDownload /> Export Selected
-                  </button>
-                </>
+                <button className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2">
+                  <FaTrash /> Delete Selected ({selectedCards.length})
+                </button>
               )}
-                             <button 
-                 onClick={() => setIsAddModalOpen(true)}
-                 className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
-               >
-                 <FaPlus /> Add Card
-               </button>
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
+              >
+                <FaPlus /> Add Card
+              </button>
             </div>
           </div>
         </div>
@@ -293,7 +249,7 @@ export default function CollectionPage() {
                     <img
                       src={card.image_url}
                       alt={card.name}
-                      className={`${viewMode === 'list' ? 'h-32 w-full' : 'h-48 w-full'} object-cover`}
+                      className={`${viewMode === 'list' ? 'h-full w-full' : 'h-48 w-full'} object-cover`}
                     />
                   ) : (
                     <div className={`${viewMode === 'list' ? 'h-32' : 'h-48'} w-full bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center`}>
@@ -315,36 +271,30 @@ export default function CollectionPage() {
                       className="ml-2"
                     />
                   </div>
-
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">Category:</span>
                       <span>{getCategoryName(card.category_id)}</span>
                     </div>
-                    
                     <div className="flex items-center gap-2">
                       <span className="font-medium">Rarity:</span>
                       <span className={`px-2 py-1 rounded-full text-xs text-white ${getRarityColor(card.rarity)}`}>
                         {card.rarity}
                       </span>
                     </div>
-
                     <div className="flex items-center gap-2">
                       <span className="font-medium">Set:</span>
                       <span>{card.set_code} #{card.number}</span>
                     </div>
-
                     {card.description && (
                       <p className="text-gray-500 text-xs line-clamp-2">
                         {card.description}
                       </p>
                     )}
-
                     <div className="text-xs text-gray-400">
                       Added {new Date(card.created_at).toLocaleDateString()}
                     </div>
                   </div>
-
                   {/* Action Buttons */}
                   <div className="flex gap-2 mt-4">
                     <button className="flex-1 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors flex items-center justify-center gap-1">
@@ -366,50 +316,48 @@ export default function CollectionPage() {
             ))}
           </div>
         )}
-
         {/* Collection Stats */}
-        {cards && cards.length > 0 && (
+        {filteredAndSortedCards.length > 0 && (
           <div className="mt-8 bg-white rounded-xl shadow-lg p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Collection Statistics</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{cards.length}</div>
+                <div className="text-2xl font-bold text-purple-600">{filteredAndSortedCards.length}</div>
                 <div className="text-sm text-gray-600">Total Cards</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
-                  {new Set(cards.map((card: Card) => card.category_id)).size}
+                  {new Set(filteredAndSortedCards.map((card: Card) => card.category_id)).size}
                 </div>
                 <div className="text-sm text-gray-600">Categories</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">
-                  {new Set(cards.map((card: Card) => card.set_code)).size}
+                  {new Set(filteredAndSortedCards.map((card: Card) => card.set_code)).size}
                 </div>
                 <div className="text-sm text-gray-600">Sets</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-yellow-600">
-                  {new Set(cards.map((card: Card) => card.rarity)).size}
+                  {new Set(filteredAndSortedCards.map((card: Card) => card.rarity)).size}
                 </div>
                 <div className="text-sm text-gray-600">Rarities</div>
               </div>
             </div>
           </div>
         )}
+        {/* Add Card Modal */}
+        <AddCardModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSuccess={() => {
+            refetch();
+            setIsAddModalOpen(false);
+          }}
+        />
       </div>
-
-      {/* Add Card Modal */}
-      <AddCardModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSuccess={() => {
-          refetch();
-          setIsAddModalOpen(false);
-        }}
-      />
-        </main>
-      </div>
-    </AuthGuard>
+    </main>
+  </div>
+</AuthGuard>
   );
-} 
+}

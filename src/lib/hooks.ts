@@ -1,6 +1,7 @@
 // React hooks for API operations
 import { useState, useEffect, useCallback } from 'react';
-import { api, Card, Category, Achievement, UserAchievement } from './api';
+import { api, Card, Category, Achievement, UserAchievement, Collection } from './api';
+import { supabase } from './supabase';
 
 // Generic hook for CRUD operations
 function useApiOperation<T>(
@@ -271,4 +272,57 @@ export const useUnlockAchievement = () => {
   }, []);
 
   return { unlockAchievement, loading, error };
+};
+
+// Collections hooks
+export const useCreateCollection = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const createCollection = useCallback(async (collection: { user_id: string; card_id: string }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.collections.create(collection);
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add card to collection');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { createCollection, loading, error };
+};
+
+export const useUserCollections = () => {
+  const [collections, setCollections] = useState<Collection[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCollections = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) {
+          setCollections([]);
+          setLoading(false);
+          return;
+        }
+        const result = await api.collections.getByUser(userId);
+        setCollections(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch collections');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCollections();
+  }, []);
+
+  return { collections, loading, error };
 }; 

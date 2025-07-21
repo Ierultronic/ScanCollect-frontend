@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useCreateCard, useCategories } from '../lib/hooks';
+import { useCreateCard, useCategories, useCreateCollection } from '../lib/hooks';
 import { Card } from '../lib/api';
 import { FaTimes, FaPlus, FaUpload } from 'react-icons/fa';
+import { TCG_OPTIONS, TCG_RARITIES } from "../lib/tcg-constants";
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 interface AddCardModalProps {
   isOpen: boolean;
@@ -11,10 +14,21 @@ interface AddCardModalProps {
   onSuccess?: () => void;
 }
 
+// Helper to convert category name to slug for TCG_RARITIES key
+function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModalProps) {
   const { createCard, loading, error } = useCreateCard();
-  const { data: categories } = useCategories();
+  const { data: categories, loading: loadingCategories } = useCategories();
+  const { createCollection, loading: loadingCollection, error: errorCollection } = useCreateCollection();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
+  // Remove tcg from formData, only use category_id
   const [formData, setFormData] = useState({
     category_id: '',
     name: '',
@@ -25,10 +39,45 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
     description: '',
   });
 
+  // Helper to get the TCG key (name) for the selected category
+  const selectedCategory = categories?.find((cat: any) => cat.id === formData.category_id);
+  const tcgKey = selectedCategory ? slugify(selectedCategory.name) : '';
+
+  // Reset rarity when category changes
+  React.useEffect(() => {
+    setFormData(prev => ({ ...prev, rarity: '' }));
+  }, [formData.category_id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSuccessMessage(null);
+    // Debug: log the payload
+    console.log("Creating card with:", formData);
+    if (!formData.name || !formData.category_id) {
+      alert("Name and TCG Category are required.");
+      return;
+    }
     try {
-      await createCard(formData);
+      // Only send the fields expected by the backend
+      const payload = {
+        category_id: formData.category_id,
+        name: formData.name,
+        rarity: formData.rarity,
+        set_code: formData.set_code,
+        number: formData.number,
+        image_url: formData.image_url,
+        description: formData.description,
+      };
+      const createdCard = await createCard(payload);
+      // Get current user ID from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+      // Add to collections table
+      await createCollection({ user_id: userId, card_id: createdCard.id });
+      toast.success('Card has been saved to your collection!');
       // Reset form
       setFormData({
         category_id: '',
@@ -40,9 +89,9 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
         description: '',
       });
       onSuccess?.();
-      onClose();
+      // Do not close modal automatically
     } catch (error) {
-      console.error('Failed to create card:', error);
+      console.error('Failed to create card or add to collection:', error);
     }
   };
 
@@ -51,6 +100,8 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
     setFormData(prev => ({
       ...prev,
       [name]: value,
+      // If TCG changes, also update category_id
+      ...(name === 'tcg' ? { category_id: value } : {}),
     }));
   };
 
@@ -77,12 +128,20 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
               {error}
             </div>
           )}
+          {errorCollection && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {errorCollection}
+            </div>
+          )}
+          {successMessage && (
+            <></>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Category */}
+            {/* TCG Selector (replaces Category) */}
             <div>
               <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 mb-2">
-                Category *
+                TCG Category *
               </label>
               <select
                 id="category_id"
@@ -90,13 +149,13 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
                 value={formData.category_id}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                style={{ backgroundColor: 'white' }}
+                disabled={loadingCategories}
               >
-                <option value="">Select a category</option>
-                {categories?.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
+                <option value="">Select a TCG</option>
+                {categories && categories.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
             </div>
@@ -128,14 +187,14 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
                 name="rarity"
                 value={formData.rarity}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                style={{ backgroundColor: 'white' }}
+                disabled={!formData.category_id}
               >
-                <option value="">Select rarity</option>
-                <option value="Common">Common</option>
-                <option value="Uncommon">Uncommon</option>
-                <option value="Rare">Rare</option>
-                <option value="Epic">Epic</option>
-                <option value="Legendary">Legendary</option>
+                <option value="">{formData.category_id ? 'Select rarity' : 'Select TCG first'}</option>
+                {(TCG_RARITIES[tcgKey] || []).map((opt: { value: string; label: string }) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
 
@@ -234,10 +293,10 @@ export default function AddCardModal({ isOpen, onClose, onSuccess }: AddCardModa
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || loadingCollection}
               className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {(loading || loadingCollection) ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   Adding...
