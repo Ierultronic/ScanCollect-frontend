@@ -7,6 +7,7 @@ import CategoryModal from '@/components/CategoryModal';
 import ManageRaritiesModal from '@/components/ManageRaritiesModal';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal';
 import { callBackendWithAuth } from '@/app/lib/supabase';
+import { FaTrophy, FaPlus } from 'react-icons/fa';
 
 interface Category {
     id?: string;
@@ -16,6 +17,8 @@ interface Category {
 }
 
 export default function CategoriesManagementPage() {
+    const isAdmin = true; // Placeholder
+
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -126,19 +129,36 @@ export default function CategoriesManagementPage() {
         setDeleteCategory(null);
     };
 
+
+    if (!isAdmin) {
+        return (
+            <AuthGuard>
+                <div className="flex min-h-screen items-center justify-center">
+                    <div className="bg-white p-8 rounded shadow text-center">
+                        <h1 className="text-2xl font-bold mb-2 text-red-600">Access Denied</h1>
+                        <p className="text-gray-600">You do not have permission to view this page.</p>
+                    </div>
+                </div>
+            </AuthGuard>
+        );
+    }
+
     return (
         <AuthGuard>
             <div className="flex min-h-screen bg-gray-100">
                 <Sidebar />
                 <main className="flex-1 p-8 overflow-y-auto">
                     <div className="max-w-5xl mx-auto">
-                        <h1 className="text-3xl font-bold mb-6 text-purple-800">Categories Management</h1>
-                        <button
-                            className="mb-6 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition"
-                            onClick={handleAdd}
-                        >
-                            Add New Category
-                        </button>
+                        <div className="flex items-center justify-between mb-8">
+                            <h1 className="text-3xl font-bold text-purple-800">Categories Management</h1>
+                            <button
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-full shadow hover:scale-105 hover:from-purple-700 hover:to-purple-900 transition-transform duration-150"
+                                onClick={handleAdd}
+                            >
+                                <FaPlus />
+                                Add New Category
+                            </button>
+                        </div>
                         {loading && <div className="text-purple-500">Loading categories...</div>}
                         {error && <div className="text-red-500">{error}</div>}
                         {!loading && !error && (
