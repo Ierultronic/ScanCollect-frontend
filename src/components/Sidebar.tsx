@@ -20,9 +20,6 @@ const navSections = [
     title: 'Explore',
     links: [
       { label: 'Explore', href: '/explore', icon: <FaSearch /> },
-      { label: 'Card Library', href: '/cards', icon: <FaBook /> },
-      { label: 'TCG Categories', href: '/categories', icon: <FaLayerGroup /> },
-      { label: 'Search & Filter', href: '/search', icon: <FaSearch /> },
     ],
   },
   {
@@ -117,7 +114,6 @@ export default function Sidebar() {
                   </ul>
                 </div>
               ))}
-            </nav>
             {/* Logout Button */}
             <button
               onClick={handleLogout}
@@ -135,6 +131,7 @@ export default function Sidebar() {
                 </>
               )}
             </button>
+            </nav>
             <div className="mt-8 text-xs text-purple-300 text-center opacity-70 select-none">
               &copy; {new Date().getFullYear()} ScanCollect
             </div>
