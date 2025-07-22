@@ -42,7 +42,20 @@ const navSections = [
   // },
 ];
 
-export default function Sidebar() {
+// Add adminOnly prop to Sidebar
+interface SidebarProps {
+  adminOnly?: boolean;
+}
+
+const adminSection = {
+  title: 'Admin Only',
+  links: [
+    { label: 'Admin Panel', href: '/admin', icon: <FaTools /> },
+    { label: 'Upload Card Image', href: '/admin/upload', icon: <FaUpload /> },
+  ],
+};
+
+export default function Sidebar({ adminOnly }: SidebarProps) {
   const [open, setOpen] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
@@ -87,7 +100,7 @@ export default function Sidebar() {
               <img src="/images/logo2.png" alt="App Logo" className="w-30 h-30 object-contain" />
             </div>
             <nav className="flex-1 space-y-8">
-              {navSections.map((section) => (
+              {(adminOnly ? [adminSection] : navSections.concat([adminSection])).map((section) => (
                 <div key={section.title}>
                   <div className="text-xs font-semibold text-purple-400 uppercase mb-2 tracking-widest">
                     {section.title}
