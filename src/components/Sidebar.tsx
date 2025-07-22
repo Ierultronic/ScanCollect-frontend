@@ -10,24 +10,24 @@ const navSections = [
   {
     title: 'General',
     links: [
-      { label: 'Dashboard', href: '/dashboard', icon: <FaTachometerAlt /> },
-      { label: 'My Collection', href: '/collection', icon: <FaThList /> },
-      { label: 'Achievements', href: '/achievements', icon: <FaTrophy /> },
-      { label: 'Scan New Card', href: '/scan', icon: <FaCamera /> },
+      { label: 'Dashboard', href: '/dashboard', icon: <FaTachometerAlt />, display: 'show' },
+      { label: 'My Collection', href: '/collection', icon: <FaThList />, display: 'show' },
+      { label: 'Achievements', href: '/achievements', icon: <FaTrophy />, display: 'hide' },
+      { label: 'Scan New Card', href: '/scan', icon: <FaCamera />, display: 'hide' },
     ],
   },
   {
     title: 'Explore',
     links: [
-      { label: 'Explore', href: '/explore', icon: <FaSearch /> },
+      { label: 'Explore', href: '/explore', icon: <FaSearch />, display: 'show' },
     ],
   },
   {
     title: 'Account',
     links: [
-      { label: 'Profile', href: '/profile', icon: <FaUser /> },
-      { label: 'Settings', href: '/settings', icon: <FaCog /> },
-      { label: 'Logout', href: '/logout', icon: <FaSignOutAlt /> },
+      { label: 'Profile', href: '/profile', icon: <FaUser />, display: 'show' },
+      { label: 'Settings', href: '/settings', icon: <FaCog />, display: 'hide' },
+      { label: 'Logout', href: '/logout', icon: <FaSignOutAlt />, display: 'show' },
     ],
   },
   // Uncomment for admin section
@@ -50,8 +50,8 @@ interface SidebarProps {
 const adminSection = {
   title: 'Admin Only',
   links: [
-    { label: 'Admin Panel', href: '/admin', icon: <FaTools /> },
-    { label: 'Upload Card Image', href: '/admin/upload', icon: <FaUpload /> },
+    { label: 'Admin Panel', href: '/admin', icon: <FaTools />, display: 'show' },
+    { label: 'Upload Card Image', href: '/admin/upload', icon: <FaUpload />, display: 'show' },
   ],
 };
 
@@ -62,7 +62,7 @@ export default function Sidebar({ adminOnly }: SidebarProps) {
 
   const handleLogout = async () => {
     if (isLoggingOut) return; // Prevent multiple clicks
-    
+
     setIsLoggingOut(true);
     try {
       await logout();
@@ -107,7 +107,7 @@ export default function Sidebar({ adminOnly }: SidebarProps) {
                   </div>
                   <ul className="space-y-1">
                     {section.links
-                      .filter((link) => link.label !== 'Logout')
+                      .filter((link) => link.label !== 'Logout' && link.display === 'show')
                       .map((link) => (
                         <motion.li
                           key={link.href}
@@ -127,23 +127,23 @@ export default function Sidebar({ adminOnly }: SidebarProps) {
                   </ul>
                 </div>
               ))}
-            {/* Logout Button */}
-            <button
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="w-full mt-6 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {isLoggingOut ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Logging out...
-                </>
-              ) : (
-                <>
-                  <FaSignOutAlt /> Logout
-                </>
-              )}
-            </button>
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="w-full mt-6 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {isLoggingOut ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Logging out...
+                  </>
+                ) : (
+                  <>
+                    <FaSignOutAlt /> Logout
+                  </>
+                )}
+              </button>
             </nav>
             <div className="mt-8 text-xs text-purple-300 text-center opacity-70 select-none">
               &copy; {new Date().getFullYear()} ScanCollect
