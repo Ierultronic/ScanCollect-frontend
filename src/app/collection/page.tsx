@@ -5,10 +5,12 @@ import { useCards, useCategories, useDeleteCard, useUserCollections } from '../.
 import { Card, Category } from '../../lib/api';
 import { FaSearch, FaFilter, FaSort, FaTrash, FaEdit, FaEye, FaPlus, FaDownload, FaShare } from 'react-icons/fa';
 import AddCardModal from '../../components/AddCardModal';
+import CardDetailModal from '../../components/CardDetailModal';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import TcgCardFilter from '../../components/TcgCardFilter';
 import { TCG_OPTIONS } from '../../lib/tcg-constants';
+import { Badge } from '@/components/ui/badge';
 
 export default function CollectionPage() {
   const { data: cards, loading, error, refetch } = useCards();
@@ -25,6 +27,8 @@ export default function CollectionPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedCardForDetail, setSelectedCardForDetail] = useState<Card | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   // Filter and sort cards (only those in user's collection)
   const filteredAndSortedCards: Card[] = React.useMemo((): Card[] => {
@@ -93,6 +97,12 @@ export default function CollectionPage() {
     }
   };
 
+  // Handle opening card detail modal
+  const handleViewCard = (card: Card) => {
+    setSelectedCardForDetail(card);
+    setIsDetailModalOpen(true);
+  };
+
   // Handle bulk selection
   const handleSelectCard = (cardId: string) => {
     setSelectedCards(prev => 
@@ -123,7 +133,7 @@ export default function CollectionPage() {
       case 'rare': return 'bg-blue-500';
       case 'epic': return 'bg-purple-500';
       case 'legendary': return 'bg-yellow-500';
-      default: return 'bg-gray-400';
+      default: return 'bg-green-400';
     }
   };
 
@@ -160,7 +170,7 @@ export default function CollectionPage() {
           </p>
         </div>
         {/* Controls */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-lg p-4 mb-6">
           <TcgCardFilter
             rarity={selectedRarity}
             search={searchTerm}
@@ -219,6 +229,37 @@ export default function CollectionPage() {
           </div>
         </div>
 
+        {/* Collection Stats */}
+        {filteredAndSortedCards.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Collection Statistics</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{filteredAndSortedCards.length}</div>
+                <div className="text-sm text-gray-600">Total Cards</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {new Set(filteredAndSortedCards.map((card: Card) => card.category_id)).size}
+                </div>
+                <div className="text-sm text-gray-600">Categories</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {new Set(filteredAndSortedCards.map((card: Card) => card.set_code)).size}
+                </div>
+                <div className="text-sm text-gray-600">Sets</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {new Set(filteredAndSortedCards.map((card: Card) => card.rarity)).size}
+                </div>
+                <div className="text-sm text-gray-600">Rarities</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Cards Display */}
         {filteredAndSortedCards.length === 0 ? (
           <div className="text-center py-12">
@@ -260,7 +301,7 @@ export default function CollectionPage() {
                     </div>
                   )}
                   {/* Custom Checkbox Overlay */}
-                  <div className="absolute top-2 right-2 z-10">
+                  {/* <div className="absolute top-2 right-2 z-10">
                     <label className="inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
@@ -274,6 +315,16 @@ export default function CollectionPage() {
                         )}
                       </span>
                     </label>
+                  </div> */}
+                  <div className="absolute top-2 left-2 flex flex-col space-y-1">
+                    <Badge className={`bg-black text-white text-xs`}>
+                      {getCategoryName(card.category_id)}
+                    </Badge>
+                  </div>
+                  <div className="absolute top-2 right-2 flex flex-col space-y-1">
+                    <Badge className={`${getRarityColor(card.rarity)} text-white text-xs`}>
+                      {card.rarity}
+                    </Badge>
                   </div>
                 </div>
 
@@ -285,19 +336,10 @@ export default function CollectionPage() {
                     </h3>
                   </div>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-700 border border-gray-200" title="Category">
-                      {getCategoryName(card.category_id)}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs text-white border ${getRarityColor(card.rarity)}`} title="Rarity">
-                      {card.rarity}
-                    </span>
                     <span className="px-2 py-0.5 rounded-full bg-blue-100 text-xs text-blue-700 border border-blue-200" title="Set">
                       {card.set_code} #{card.number}
                     </span>
                   </div>
-                  {card.description && (
-                    <p className="text-gray-500 text-xs line-clamp-2 mb-2">{card.description}</p>
-                  )}
                   <div className="flex items-center gap-2 mt-auto">
                     <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full border border-gray-200" title="Date Added">
                       {new Date(card.created_at).toLocaleDateString()}
@@ -307,13 +349,13 @@ export default function CollectionPage() {
                   <div className="border-t border-gray-100 my-2" />
                   {/* Action Buttons */}
                   <div className="flex gap-2 mt-1">
-                    <button className="flex-1 p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors flex items-center justify-center group/view relative" title="View">
+                    <button 
+                      onClick={() => handleViewCard(card)}
+                      className="flex-1 p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors flex items-center justify-center group/view relative" 
+                      title="View"
+                    >
                       <FaEye />
                       <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 text-xs bg-gray-800 text-white rounded px-2 py-0.5 opacity-0 group-hover/view:opacity-100 pointer-events-none transition-opacity">View</span>
-                    </button>
-                    <button className="flex-1 p-2 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors flex items-center justify-center group/edit relative" title="Edit">
-                      <FaEdit />
-                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 text-xs bg-gray-800 text-white rounded px-2 py-0.5 opacity-0 group-hover/edit:opacity-100 pointer-events-none transition-opacity">Edit</span>
                     </button>
                     <button
                       onClick={() => handleDeleteCard(card.id)}
@@ -330,36 +372,7 @@ export default function CollectionPage() {
             ))}
           </div>
         )}
-        {/* Collection Stats */}
-        {filteredAndSortedCards.length > 0 && (
-          <div className="mt-8 bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Collection Statistics</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{filteredAndSortedCards.length}</div>
-                <div className="text-sm text-gray-600">Total Cards</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {new Set(filteredAndSortedCards.map((card: Card) => card.category_id)).size}
-                </div>
-                <div className="text-sm text-gray-600">Categories</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {new Set(filteredAndSortedCards.map((card: Card) => card.set_code)).size}
-                </div>
-                <div className="text-sm text-gray-600">Sets</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600">
-                  {new Set(filteredAndSortedCards.map((card: Card) => card.rarity)).size}
-                </div>
-                <div className="text-sm text-gray-600">Rarities</div>
-              </div>
-            </div>
-          </div>
-        )}
+
         {/* Add Card Modal */}
         <AddCardModal
           isOpen={isAddModalOpen}
@@ -367,6 +380,26 @@ export default function CollectionPage() {
           onSuccess={() => {
             refetch();
             setIsAddModalOpen(false);
+          }}
+        />
+
+        {/* Card Detail Modal */}
+        <CardDetailModal
+          open={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setSelectedCardForDetail(null);
+          }}
+          card={selectedCardForDetail}
+          category={categories?.find(cat => cat.id === selectedCardForDetail?.category_id)}
+          onEdit={(card) => {
+            // TODO: Implement edit functionality
+            console.log('Edit card:', card);
+          }}
+          onDelete={(cardId) => {
+            handleDeleteCard(cardId);
+            setIsDetailModalOpen(false);
+            setSelectedCardForDetail(null);
           }}
         />
       </div>

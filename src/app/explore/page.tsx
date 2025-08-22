@@ -7,6 +7,9 @@ import AuthGuard from "@/components/AuthGuard";
 import { motion } from "framer-motion";
 import { TCG_OPTIONS, TCG_RARITIES } from "../../lib/tcg-constants";
 import TcgCardFilter from '../../components/TcgCardFilter';
+import { JustTCGCard, justtcgApi, fallbackCards } from "../../lib/justtcg-api";
+import UnifiedCardComponent from "../../components/UnifiedCardComponent";
+import ExploreCardModal from "../../components/ExploreCardModal";
 
 interface Card {
   id: string;
@@ -20,7 +23,7 @@ interface Card {
 }
 
 export default function ExplorePage() {
-  const [cards, setCards] = useState<Card[]>([]);
+  const [cards, setCards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
@@ -35,7 +38,8 @@ export default function ExplorePage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalImage, setModalImage] = useState<string | null>(null);
+  const [useJustTCG, setUseJustTCG] = useState(true); // Toggle between JustTCG and backend API
+  const [selectedCard, setSelectedCard] = useState<any>(null);
 
   // Fetch categories from backend
   useEffect(() => {
@@ -54,32 +58,71 @@ export default function ExplorePage() {
       });
   }, []);
 
-  // Fetch cards from backend API
+  // Fetch cards from JustTCG API or backend API
   useEffect(() => {
     setLoading(true);
     setError(null);
-    const params = new URLSearchParams();
-    // Find the selected category object
-    const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
-    // Convert category name to slug
-    const tcgSlug = selectedCategoryObj?.name
-      ? selectedCategoryObj.name.toLowerCase().replace(/ /g, '-')
-      : '';
-    if (tcgSlug) params.append("tcg", tcgSlug);
-    if (searchTerm) params.append("name", searchTerm);
-    params.append("page", String(page));
-    params.append("limit", "10");
-    fetch(`http://localhost:8082/api/explore-cards?${params.toString()}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to fetch cards");
-        const data = await res.json();
-        setCards(data.data || []);
-        if (typeof data.totalPages === "number") setTotalPages(data.totalPages);
-        else setTotalPages(1);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [searchTerm, selectedCategory, page, categories]);
+
+    const fetchCards = async () => {
+      try {
+        if (useJustTCG) {
+          // Use JustTCG API
+          const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
+          const categoryName = selectedCategoryObj?.name || 'Pokémon';
+          const gameId = justtcgApi.getGameId(categoryName);
+
+          console.log('JustTCG Search:', {
+            categoryName,
+            gameId,
+            searchTerm,
+            page
+          });
+
+          const cards = await justtcgApi.searchCards({
+            game: gameId,
+            name: searchTerm || undefined,
+            limit: 20,
+            offset: (page - 1) * 20,
+            orderBy: sortBy === 'name' ? undefined : 'price',
+            order: sortOrder,
+          });
+
+          setCards(cards);
+          setTotalPages(Math.ceil(cards.length / 20) || 1);
+        } else {
+          // Use backend API (fallback)
+          const params = new URLSearchParams();
+          const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
+          const tcgSlug = selectedCategoryObj?.name
+            ? selectedCategoryObj.name.toLowerCase().replace(/ /g, '-')
+            : '';
+          if (tcgSlug) params.append("tcg", tcgSlug);
+          if (searchTerm) params.append("name", searchTerm);
+          params.append("page", String(page));
+          params.append("limit", "10");
+          
+          const response = await fetch(`http://localhost:8082/api/explore-cards?${params.toString()}`);
+          if (!response.ok) throw new Error("Failed to fetch cards");
+          const data = await response.json();
+          setCards(data.data || []);
+          if (typeof data.totalPages === "number") setTotalPages(data.totalPages);
+          else setTotalPages(1);
+        }
+      } catch (err) {
+        console.error('Error fetching cards:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch cards');
+        // Fallback to sample data if JustTCG fails
+        if (useJustTCG) {
+          setCards(fallbackCards);
+          setTotalPages(1);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCards();
+  }, [searchTerm, selectedCategory, page, categories, useJustTCG, sortBy, sortOrder]);
 
   // Reset to page 1 when search or TCG changes
   useEffect(() => { setPage(1); }, [searchTerm, selectedCategory]);
@@ -90,32 +133,45 @@ export default function ExplorePage() {
   // Filter and sort cards
   const filteredAndSortedCards = useMemo(() => {
     let filtered = cards.filter((card) => {
+      // Ensure we're working with string values for filtering
+      const cardName = typeof card.name === 'string' ? card.name : String(card.name || '');
+      const cardSet = typeof card.set === 'string' ? card.set : 
+                    typeof card.set_code === 'string' ? card.set_code : String(card.set || card.set_code || '');
+      const cardRarity = typeof card.rarity === 'string' ? card.rarity : String(card.rarity || '');
+      
       const matchesSearch =
-        (card.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (card.description?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (card.set_code?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-      const matchesRarity = !selectedRarity || card.rarity === selectedRarity;
+        cardName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cardSet.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRarity = !selectedRarity || cardRarity === selectedRarity;
       return matchesSearch && matchesRarity;
     });
+    
     filtered.sort((a, b) => {
-      let aValue: string | number, bValue: string | number;
+      let aValue: string, bValue: string;
+      
+      // Ensure we're working with string values for sorting
       switch (sortBy) {
         case "name":
-          aValue = a.name.toLowerCase();
-          bValue = b.name.toLowerCase();
+          aValue = typeof a.name === 'string' ? a.name.toLowerCase() : String(a.name || '').toLowerCase();
+          bValue = typeof b.name === 'string' ? b.name.toLowerCase() : String(b.name || '').toLowerCase();
           break;
         case "rarity":
-          aValue = a.rarity.toLowerCase();
-          bValue = b.rarity.toLowerCase();
+          aValue = typeof a.rarity === 'string' ? a.rarity.toLowerCase() : String(a.rarity || '').toLowerCase();
+          bValue = typeof b.rarity === 'string' ? b.rarity.toLowerCase() : String(b.rarity || '').toLowerCase();
           break;
         case "set_code":
-          aValue = a.set_code.toLowerCase();
-          bValue = b.set_code.toLowerCase();
+          const aSet = typeof a.set === 'string' ? a.set : 
+                      typeof a.set_code === 'string' ? a.set_code : String(a.set || a.set_code || '');
+          const bSet = typeof b.set === 'string' ? b.set : 
+                      typeof b.set_code === 'string' ? b.set_code : String(b.set || b.set_code || '');
+          aValue = aSet.toLowerCase();
+          bValue = bSet.toLowerCase();
           break;
         default:
-          aValue = a.name.toLowerCase();
-          bValue = b.name.toLowerCase();
+          aValue = typeof a.name === 'string' ? a.name.toLowerCase() : String(a.name || '').toLowerCase();
+          bValue = typeof b.name === 'string' ? b.name.toLowerCase() : String(b.name || '').toLowerCase();
       }
+      
       if (sortOrder === "asc") {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -193,6 +249,52 @@ export default function ExplorePage() {
             </div>
             {/* Controls */}
             <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+              {/* API Toggle */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-gray-700">API Source:</span>
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setUseJustTCG(true)}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        useJustTCG
+                          ? 'bg-purple-600 text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      disabled={!justtcgApi.isConfigured()}
+                    >
+                      JustTCG (Live Pricing)
+                    </button>
+                    <button
+                      onClick={() => setUseJustTCG(false)}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        !useJustTCG
+                          ? 'bg-purple-600 text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      API TCG
+                    </button>
+                  </div>
+                </div>
+                {useJustTCG ? (
+                  <div className={`text-xs px-2 py-1 rounded ${
+                    justtcgApi.isConfigured() 
+                      ? 'text-green-600 bg-green-50' 
+                      : 'text-red-600 bg-red-50'
+                  }`}>
+                    {justtcgApi.isConfigured() 
+                      ? '✓ JustTCG API configured' 
+                      : '⚠ JustTCG API key needed'
+                    }
+                  </div>
+                ) : (
+                  <div className="text-xs px-2 py-1 rounded text-blue-600 bg-blue-50">
+                    ✓ API TCG with images
+                  </div>
+                )}
+              </div>
+
               <TcgCardFilter
                 rarity={selectedRarity}
                 search={searchInput}
@@ -223,6 +325,17 @@ export default function ExplorePage() {
                     ? "Try adjusting your filters"
                     : "Try searching for a card!"}
                 </p>
+                {useJustTCG && !justtcgApi.isConfigured() && (
+                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-yellow-800 text-sm">
+                      <strong>JustTCG API Key Required:</strong> To use live pricing data, 
+                      please add your JustTCG API key to the backend environment variables.
+                    </p>
+                    <p className="text-yellow-700 text-xs mt-2">
+                      Add <code className="bg-yellow-100 px-1 rounded">JUST_TCG_API_KEY=your_key</code> to your backend <code className="bg-yellow-100 px-1 rounded">.env</code> file.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -233,85 +346,22 @@ export default function ExplorePage() {
                       : "space-y-4"
                   }
                 >
-                  {filteredAndSortedCards.map((card) => (
-                    <motion.div
-                      key={card.id + (card.number || "")}
-                      className="relative overflow-hidden shadow-lg rounded-[28px] flex items-end"
-                      style={{ width: 260, height: 360, margin: "auto", cursor: "pointer", border: "2px solid #c4b5fd", background: "#eee" }}
-                      whileHover={{
-                        scale: 1.12,
-                        rotate: -2,
-                        boxShadow: "0 15px 35px rgba(147, 51, 234, 0.15), 0 5px 15px rgba(168, 85, 247, 0.10)",
-                        zIndex: 10,
-                      }}
-                      transition={{ type: "spring", stiffness: 260, damping: 15 }}
-                      onClick={() => {
-                        const img = getCardImage(card);
-                        if (img) {
-                          setModalImage(img);
+                  {filteredAndSortedCards.map((card) => {
+                    // Debug logging to see card structure
+                    console.log('Rendering card:', card);
+                    
+                    return (
+                      <UnifiedCardComponent
+                        key={card.id + (card.number || "")}
+                        card={card}
+                        isJustTCG={useJustTCG}
+                        onClick={() => {
+                          setSelectedCard(card);
                           setModalOpen(true);
-                        }
-                      }}
-                    >
-                      {/* Card Image as background */}
-                      {getCardImage(card) ? (
-                        <img
-                          src={getCardImage(card)}
-                          alt={card.name}
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                            borderRadius: 28,
-                            zIndex: 1,
-                          }}
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-100 to-blue-100 z-1 rounded-[28px]">
-                          <div className="text-gray-400 text-4xl">🃏</div>
-                        </div>
-                      )}
-                      {/* Gradient overlay for text readability */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: 0,
-                          bottom: 0,
-                          width: "100%",
-                          height: "100px",
-                          background: "linear-gradient(0deg, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0.0) 100%)",
-                          zIndex: 2,
                         }}
                       />
-                      {/* Card Info overlay */}
-                      <div
-                        style={{
-                          position: "relative",
-                          zIndex: 3,
-                          width: "100%",
-                          padding: "14px 14px 10px 14px",
-                          color: "#fff",
-                          fontWeight: 500,
-                          fontSize: "1.05rem",
-                          textShadow: "0 2px 8px rgba(0,0,0,0.5)",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 6,
-                        }}
-                      >
-                        <div style={{ fontWeight: 700, fontSize: "1.12rem", lineHeight: 1.2, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", maxWidth: "100%" }}>{card.name}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.98rem", flexWrap: "nowrap", minWidth: 0 }}>
-                          <span style={{ fontWeight: 500, whiteSpace: "nowrap" }}>Rarity:</span>
-                          <span style={{ background: "rgba(0,0,0,0.7)", color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 700, fontSize: "0.98rem", letterSpacing: 0.5, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-block" }}>{card.rarity}</span>
-                          <span style={{ fontWeight: 500, whiteSpace: "nowrap" }}>Set:</span>
-                          <span style={{ background: "rgba(0,0,0,0.7)", color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 700, fontSize: "0.98rem", letterSpacing: 0.5, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-block" }}>{card.set_code}{card.number ? ` #${card.number}` : ""}</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {/* Pagination Controls */}
                 <div className="flex justify-center items-center gap-4 mt-8">
@@ -338,25 +388,16 @@ export default function ExplorePage() {
           </div>
         </main>
       </div>
-      {/* Modal for full image display */}
-      {modalOpen && modalImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setModalOpen(false)}>
-          <div className="relative bg-transparent rounded-lg shadow-lg flex flex-col items-center" onClick={e => e.stopPropagation()}>
-            <button
-              onClick={() => setModalOpen(false)}
-              className="absolute top-2 right-2  text-purple-700 rounded-full px-0.5 py-0.5 font-bold shadow hover:bg-purple-100 z-10 text-base"
-              aria-label="Close"
-            >
-              ×
-            </button>
-            <img
-              src={modalImage}
-              alt="Card Full"
-              style={{ maxWidth: "90vw", maxHeight: "80vh", borderRadius: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
-            />
-          </div>
-        </div>
-      )}
+      {/* Card Detail Modal */}
+      <ExploreCardModal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedCard(null);
+        }}
+        card={selectedCard}
+        isJustTCG={useJustTCG}
+      />
     </AuthGuard>
   );
 } 
